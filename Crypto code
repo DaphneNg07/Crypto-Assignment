@@ -1,0 +1,71 @@
+import pandas as pd
+import numpy as np
+import yfinance as yf
+import matplotlib.pyplot as plt
+
+symbols = ['BTC-USD', 'ETH-USD', 'USDT-USD', 'BNB-USD', 'DOGE-USD', 'TRX-USD']
+start_date = '2023-01-01'
+end_date = '2023-10-31'
+data = yf.download(symbols, start=start_date, end=end_date)['Adj Close']
+
+# Calculate daily returns
+returns = data.pct_change()
+
+# Number of Monte Carlo simulations
+num_simulations = 1000
+
+# Number of trading days in the future to simulate
+num_days = 252
+
+# Initialize arrays to store results
+all_weights = np.zeros((num_simulations, len(symbols)))
+port_returns = np.zeros(num_simulations)
+port_volatility = np.zeros(num_simulations)
+sharpe_ratio = np.zeros(num_simulations)
+
+for i in range(num_simulations):
+    # Generate random weights for the assets in the portfolio
+    weights = np.random.random(len(symbols))
+    weights /= np.sum(weights)
+
+    # Calculate portfolio returns and volatility
+    port_returns[i] = np.sum(returns.mean() * weights) * num_days
+    port_volatility[i] = np.sqrt(np.dot(weights.T, np.dot(returns.cov() * num_days, weights)))
+
+    # Calculate Sharpe ratio
+    sharpe_ratio[i] = (port_returns[i] - 0.45)/ port_volatility[i]
+
+    # Save weights
+    all_weights[i, :] = weights
+
+# Find the index of the maximum Sharpe ratio
+max_sharpe_ratio_index = sharpe_ratio.argmax()
+
+# Get the corresponding optimal weights and values
+optimal_weights = all_weights[max_sharpe_ratio_index, :]
+optimal_return = port_returns[max_sharpe_ratio_index]
+optimal_volatility = port_volatility[max_sharpe_ratio_index]
+
+# Print results
+print("Optimal Weights:", optimal_weights)
+print("Optimal Return:", optimal_return)
+print("Optimal Volatility:", optimal_volatility)
+print("Optimal Sharpe Ratio:", sharpe_ratio[max_sharpe_ratio_index])
+
+# Plot the efficient frontier
+plt.scatter(port_volatility, port_returns, c=sharpe_ratio, cmap='viridis')
+plt.colorbar(label='Sharpe Ratio')
+plt.xlabel('Volatility')
+plt.ylabel('Return')
+plt.scatter(optimal_volatility, optimal_return, marker='*', color='b', s=500, label='Optimal Portfolio')
+plt.legend()
+plt.show()
+[*********************100%%**********************]  6 of 6 completed
+Optimal Weights: [0.12068279 0.35823974 0.00799891 0.13963262 0.36119764 0.0122483 ]
+Optimal Return: 0.49137875209203113
+Optimal Volatility: 0.3112230684718005
+Optimal Sharpe Ratio: 0.13295528604358708
+
+ 
+ 
+ 
