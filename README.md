@@ -1,1 +1,1 @@
-Portfolio Optimisation using Monte Carlo simulation in Python
+Optimise Cryptocurrency investment portfolio using Monte Carlo simulation in Python
