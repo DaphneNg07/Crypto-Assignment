@@ -1,0 +1,185 @@
+import time
+import yfinance as yf
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+cryptos = ['BTC-USD', 'ETH-USD', 'DOGE-USD', 'BNB-USD', 'USDT-USD', 'TRX-USD']
+
+def get_data(tickers, start_date, end_date):
+    """Read in daily price(adjusted close) of asset for a given set of dates."""
+    df = yf.download(tickers, start=start_date, end=end_date)['Adj Close']
+    df.sort_index(inplace=True)
+    return df
+
+crypto_prices = get_data(cryptos, '2023-01-01', '2023-10-31')
+print(crypto_prices.head())
+
+def calc_daily_returns(df):
+    return df.pct_change()
+
+crypto_daily_rets = calc_daily_returns(crypto_prices)
+print(crypto_daily_rets.head())
+
+def calc_mean_daily_returns(daily_returns):
+    return daily_returns.mean()
+
+crypto_mean_daily_rets = calc_mean_daily_returns(crypto_daily_rets)
+print(crypto_mean_daily_rets.head())
+
+def create_covariance_matrix(daily_returns):
+    return daily_returns.cov()
+
+crypto_cov_matrix = create_covariance_matrix(crypto_daily_rets)
+print(crypto_cov_matrix)
+
+def create_results_dataframe(tickers, number_portfolios, mean_daily_returns, cov_matrix):
+    results_temp = np.zeros((4 + len(tickers) - 1, number_portfolios))
+
+    for i in range(number_portfolios):
+        # select random weights for portfolio holdings
+        weights = np.array(np.random.random(len(tickers)))
+        
+        # rebalance weights to sum to 1
+        weights /= np.sum(weights)
+
+        # calculate portfolio return and volatility
+        portfolio_return = np.sum(mean_daily_returns * weights) * 252
+        portfolio_std_dev = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights))) * np.sqrt(252)
+
+        # 3 month T-Bill yield used as risk-free rate of return
+        risk_free_return = 0.0139
+
+        # store results in results array
+        results_temp[0, i] = portfolio_return
+        results_temp[1, i] = portfolio_std_dev
+        
+        # store Sharpe Ratio (return / volatility) - risk-free rate element excluded for simplicity
+        results_temp[2, i] = (results_temp[0, i] - risk_free_return) / results_temp[1, i]
+        
+        # iterate through the weight vector and add data to results array
+        for j in range(len(weights)):
+            results_temp[j + 3, i] = weights[j]
+
+    # convert results array to Pandas DataFrame
+    results_df = pd.DataFrame(results_temp.T, columns=['ret', 'stdev', 'sharpe', tickers[0], 
+                                                       tickers[1], tickers[2], tickers[3], tickers[4], tickers[5]])
+    
+    return results_df
+
+crypto_results = create_results_dataframe(cryptos, 10000, crypto_mean_daily_rets, crypto_cov_matrix)
+print(crypto_results.head())
+
+def max_sharpe_ratio(results_df):
+    """locate portfolio with the highest Sharpe Ratio"""
+    return results_df.iloc[results_df['sharpe'].idxmax()]
+
+crypto_max_sharpe_portfolio = max_sharpe_ratio(crypto_results)
+print(crypto_max_sharpe_portfolio)
+
+def min_volatility(results_df):
+    """locate portfolio with the lowest volatility"""
+    return results_df.iloc[results_df['stdev'].idxmin()]
+
+crypto_min_vol_portfolio = min_volatility(crypto_results)
+print(crypto_min_vol_portfolio)
+
+def plot_graph(results_df, max_sharpe_port, min_vol_port):
+    ax = results_df.plot(kind='scatter', x='stdev', y='ret', s=30,
+                         c=results_df.sharpe, cmap='RdYlBu', edgecolors='.1', figsize=(20, 10))
+    ax.grid(True, color='w', linestyle='-', linewidth=1)
+    ax.set_facecolor('white')  # Set the background color to white
+    ax.set_xlabel('Volatility')
+    ax.set_ylabel('Returns')
+    ax.tick_params(labelsize=14)
+
+    # plot red star to highlight the position of the portfolio with the highest Sharpe Ratio
+    ax.scatter(max_sharpe_port[1], max_sharpe_port[0], marker=(5, 1, 0), color='r', s=1000)
+    # plot green star to highlight the position of the minimum variance portfolio
+    ax.scatter(min_vol_port[1], min_vol_port[0], marker=(5, 1, 0), color='g', s=1000)
+
+    # add text annotations next to the stars
+    ax.text(max_sharpe_port[1], max_sharpe_port[0], ' Optimal Sharpe Ratio', color='r', fontsize=12, ha='right')
+    ax.text(min_vol_port[1], min_vol_port[0], ' Minimum Volatility', color='g', fontsize=12, ha='right')
+
+plot_graph(crypto_results, crypto_max_sharpe_portfolio, crypto_min_vol_portfolio)
+plt.show()
+[*********************100%%**********************]  6 of 6 completed
+               BNB-USD       BTC-USD  DOGE-USD      ETH-USD   TRX-USD  \
+Date                                                                    
+2023-01-01  244.136978  16625.080078  0.070225  1200.964844  0.054820   
+2023-01-02  245.535904  16688.470703  0.071454  1214.656616  0.055157   
+2023-01-03  246.133362  16679.857422  0.070468  1214.778809  0.054833   
+2023-01-04  259.119690  16863.238281  0.073237  1256.526611  0.054732   
+2023-01-05  256.422852  16836.736328  0.071550  1250.438599  0.053661   
+
+            USDT-USD  
+Date                  
+2023-01-01  0.999692  
+2023-01-02  0.999771  
+2023-01-03  0.999759  
+2023-01-04  0.999763  
+2023-01-05  0.999697  
+             BNB-USD   BTC-USD  DOGE-USD   ETH-USD   TRX-USD  USDT-USD
+Date                                                                  
+2023-01-01       NaN       NaN       NaN       NaN       NaN       NaN
+2023-01-02  0.005730  0.003813  0.017501  0.011401  0.006147  0.000079
+2023-01-03  0.002433 -0.000516 -0.013799  0.000101 -0.005874 -0.000012
+2023-01-04  0.052761  0.010994  0.039294  0.034367 -0.001842  0.000004
+2023-01-05 -0.010408 -0.001572 -0.023035 -0.004845 -0.019568 -0.000066
+BNB-USD     0.000013
+BTC-USD     0.002681
+DOGE-USD    0.000483
+ETH-USD     0.001634
+TRX-USD     0.002092
+dtype: float64
+           BNB-USD       BTC-USD      DOGE-USD       ETH-USD       TRX-USD  \
+BNB-USD   0.000469  3.564108e-04  4.049601e-04  3.726519e-04  2.614091e-04   
+BTC-USD   0.000356  5.322100e-04  4.493949e-04  4.692702e-04  3.063220e-04   
+DOGE-USD  0.000405  4.493949e-04  1.039597e-03  5.124712e-04  3.677001e-04   
+ETH-USD   0.000373  4.692702e-04  5.124712e-04  5.535018e-04  3.410888e-04   
+TRX-USD   0.000261  3.063220e-04  3.677001e-04  3.410888e-04  4.979892e-04   
+USDT-USD -0.000001 -8.192245e-07 -7.182725e-07 -3.539493e-07 -2.832766e-07   
+
+              USDT-USD  
+BNB-USD  -1.296849e-06  
+BTC-USD  -8.192245e-07  
+DOGE-USD -7.182725e-07  
+ETH-USD  -3.539493e-07  
+TRX-USD  -2.832766e-07  
+USDT-USD  2.273866e-07  
+        ret     stdev    sharpe   BTC-USD   ETH-USD  DOGE-USD   BNB-USD  \
+0  0.276226  0.261687  1.002444  0.154975  0.173098  0.184126  0.099489   
+1  0.263038  0.249660  0.997910  0.343390  0.256431  0.021530  0.051228   
+2  0.374149  0.333782  1.079295  0.032245  0.092157  0.224971  0.374982   
+3  0.364488  0.277765  1.262173  0.081060  0.273207  0.182121  0.043913   
+4  0.274400  0.281856  0.924228  0.077247  0.105943  0.239923  0.245841   
+
+   USDT-USD   TRX-USD  
+0  0.180582  0.207731  
+1  0.122861  0.204560  
+2  0.246464  0.029182  
+3  0.264080  0.155619  
+4  0.136492  0.194554  
+ret         0.579504
+stdev       0.320123
+sharpe      1.766834
+BTC-USD     0.003972
+ETH-USD     0.448977
+DOGE-USD    0.004866
+BNB-USD     0.073042
+USDT-USD    0.465513
+TRX-USD     0.003632
+Name: 5497, dtype: float64
+ret         0.117808
+stdev       0.109781
+sharpe      0.946506
+BTC-USD     0.117547
+ETH-USD     0.055895
+DOGE-USD    0.034705
+BNB-USD     0.022225
+USDT-USD    0.124780
+TRX-USD     0.644849
+Name: 4227, dtype: float64
+
+ 
